@@ -33,11 +33,13 @@ steering, and hold **Climb** or **Descend** for pitch.
 Hold **Shift** or the touch **Sprint** button while moving. Players sprint at
 twice walking speed, and the King sprints at eight times walking speed.
 
-The land shark chases swimmers at 1.5× walking speed. Each approach to shore
-has a 25% chance that it grows legs and comes ashore for one minute before
-respawning offshore. Its orange marker shows on the map, and its splashing
-is audible anywhere in the room while it swims. Contact sends you back to
-harbor spawn. The King can shoot it and the shark screams before respawning.
+The land shark stays in the sea and chases swimmers at 1.5× walking speed.
+Its orange marker shows on the map, and its splashing is audible anywhere in
+the room while it swims. Contact sends you back to harbor spawn. The King can
+shoot it and the shark screams before respawning offshore.
+
+Every respawn, from the shark or a King's shot, lands at a random spot within
+3.5 blocks of harbor spawn.
 
 Follow the gold beacon and walk into the crown to become King for one
 minute. The room shows who is King and how much time remains. The crown

@@ -3,28 +3,11 @@ import type { Pose } from './presence-protocol.ts';
 import { type Color, ground, inWorld, Mesh, WATER } from './terrain.ts';
 
 export const LAND_SHARK_SPEED = WALK_SPEED * 1.5;
-export const SHARK_WALK_SECONDS = 60;
 const OCEAN_START = { x: 18.5, z: 29.5 };
-const BEACH = { x: 7.5, z: 25.5 };
-const OCEAN_PATROL = [BEACH, { x: 20.5, z: 39.5 }, OCEAN_START];
-const LAND_PATROL = [
-  { x: -9.5, z: 25.5 },
-  { x: -3.5, z: 19.5 },
-  { x: -13.5, z: 12.5 },
-];
+const OCEAN_PATROL = [{ x: 7.5, z: 25.5 }, { x: 20.5, z: 39.5 }, OCEAN_START];
 const SCREAM_SECONDS = 0.9;
 const CONTACT_RADIUS = 1.15;
 const SWIM_HEIGHT = WATER - 0.92;
-const SHORE_OFFSETS = [
-  [-2, 0],
-  [0, -2],
-  [2, 0],
-  [0, 2],
-  [-1.5, -1.5],
-  [-1.5, 1.5],
-  [1.5, -1.5],
-  [1.5, 1.5],
-] as const;
 const SWIM_TURNS = [
   0,
   Math.PI / 4,
@@ -39,17 +22,10 @@ export type SharkPose = Pose & {
   inWater: boolean;
   dying: boolean;
 };
-type SharkTarget = { x: number; z: number };
-type Swimmer = SharkTarget & { id: number; y: number };
+type Swimmer = { id: number; x: number; y: number; z: number };
 
 function inWater(player: Swimmer) {
   return ground(player.x, player.z) < WATER && player.y <= WATER + 0.15;
-}
-
-function shoreNear({ x, z }: SharkTarget): SharkTarget | undefined {
-  for (const [dx, dz] of SHORE_OFFSETS) {
-    if (ground(x + dx, z + dz) >= WATER) return { x: x + dx, z: z + dz };
-  }
 }
 
 function swimStep(pose: SharkPose, yaw: number, distance: number) {
@@ -81,26 +57,11 @@ function spawnShark(): SharkPose {
   };
 }
 
-export function createLandShark(random = Math.random) {
+/** The shark never leaves the sea: it patrols offshore and chases swimmers. */
+export function createLandShark() {
   let pose = spawnShark();
-  let landing: SharkTarget | undefined;
-  let walkingTime: number | undefined;
-  let shoreChecked = false;
-  let timeOffshore = 0;
-  let oceanPoint = 0;
-  let landPoint = 0;
+  let patrolPoint = 0;
   let respawnDelay = 0;
-
-  function respawn() {
-    pose = spawnShark();
-    landing = undefined;
-    walkingTime = undefined;
-    shoreChecked = false;
-    timeOffshore = 0;
-    oceanPoint = 0;
-    landPoint = 0;
-    respawnDelay = 0;
-  }
 
   return {
     get pose() {
@@ -109,54 +70,28 @@ export function createLandShark(random = Math.random) {
     shoot() {
       if (pose.dying) return false;
       respawnDelay = SCREAM_SECONDS;
-      pose = { ...pose, walking: false, dying: true };
+      pose = { ...pose, dying: true };
       return true;
     },
     step(seconds: number, players: readonly Swimmer[]) {
       if (pose.dying) {
         respawnDelay -= seconds;
-        if (respawnDelay <= 1e-6) respawn();
+        if (respawnDelay <= 1e-6) {
+          pose = spawnShark();
+          patrolPoint = 0;
+        }
         return [];
       }
-      if (walkingTime !== undefined) {
-        walkingTime -= seconds;
-        if (walkingTime <= 1e-6) {
-          respawn();
-          return [];
-        }
-      }
 
-      if (walkingTime === undefined && !landing) {
-        const shore = shoreNear(pose);
-        if (shore) {
-          timeOffshore = 0;
-          if (!shoreChecked) {
-            shoreChecked = true;
-            if (random() < 0.25) landing = shore;
-          }
-        } else {
-          timeOffshore += seconds;
-          if (timeOffshore >= 0.5) shoreChecked = false;
-        }
-      }
-
-      const patrol = walkingTime === undefined ? OCEAN_PATROL : LAND_PATROL;
-      const patrolIndex = walkingTime === undefined ? oceanPoint : landPoint;
-      let target = landing ?? patrol[patrolIndex];
-      if (!landing) {
-        let nearest = Infinity;
-        for (const player of players) {
-          const feet = ground(player.x, player.z);
-          if (
-            !inWater(player) &&
-            (walkingTime === undefined || feet < WATER || player.y > feet + 1.1)
-          )
-            continue;
-          const distance = Math.hypot(player.x - pose.x, player.z - pose.z);
-          if (distance < nearest) {
-            target = player;
-            nearest = distance;
-          }
+      const patrol = OCEAN_PATROL[patrolPoint];
+      let target: { x: number; z: number } = patrol;
+      let nearest = Infinity;
+      for (const player of players) {
+        if (!inWater(player)) continue;
+        const distance = Math.hypot(player.x - pose.x, player.z - pose.z);
+        if (distance < nearest) {
+          target = player;
+          nearest = distance;
         }
       }
 
@@ -165,41 +100,23 @@ export function createLandShark(random = Math.random) {
       const distance = Math.hypot(dx, dz);
       const stride = Math.min(distance, LAND_SHARK_SPEED * seconds);
       const yaw = distance > 0.01 ? Math.atan2(dx, -dz) : pose.yaw;
-      const canExitSea = !!landing || walkingTime !== undefined;
-      const next = canExitSea
-        ? {
-            x: pose.x + Math.sin(yaw) * stride,
-            z: pose.z - Math.cos(yaw) * stride,
-            yaw,
-          }
-        : swimStep(pose, yaw, stride);
-      const groundHeight = ground(next.x, next.z);
-      const swimming = groundHeight < WATER;
-      const height = swimming ? SWIM_HEIGHT : groundHeight;
+      const { x, z, yaw: heading } = swimStep(pose, yaw, stride);
       pose = {
-        ...next,
-        y: pose.y + (height - pose.y) * Math.min(1, seconds * 12),
-        walking: !swimming && stride > 0,
-        inWater: swimming,
+        x,
+        z,
+        yaw: heading,
+        y: SWIM_HEIGHT,
+        walking: false,
+        inWater: true,
         dying: false,
       };
-      if (landing && !swimming) {
-        walkingTime = SHARK_WALK_SECONDS;
-        landing = undefined;
-      } else if (distance <= stride && target === patrol[patrolIndex]) {
-        if (walkingTime === undefined)
-          oceanPoint = (oceanPoint + 1) % OCEAN_PATROL.length;
-        else landPoint = (landPoint + 1) % LAND_PATROL.length;
-      }
+      if (target === patrol && distance <= stride)
+        patrolPoint = (patrolPoint + 1) % OCEAN_PATROL.length;
       return players
         .filter(
           (player) =>
-            Math.hypot(player.x - pose.x, player.z - pose.z) <=
-              CONTACT_RADIUS &&
-            (swimming
-              ? inWater(player)
-              : ground(player.x, player.z) >= WATER &&
-                Math.abs(player.y - groundHeight) < 1.05),
+            inWater(player) &&
+            Math.hypot(player.x - pose.x, player.z - pose.z) <= CONTACT_RADIUS,
         )
         .map((player) => player.id);
     },

@@ -5,7 +5,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { BUILD_COMMIT } from '../src/world/build.ts';
 import { createCrown } from '../src/world/crown.ts';
 import { createLandShark } from '../src/world/land-shark.ts';
-import { EYE_HEIGHT, spawnView } from '../src/world/movement.ts';
+import { EYE_HEIGHT, respawnView } from '../src/world/movement.ts';
 import { POST_MARK_LIMIT, type PostMark } from '../src/world/post-marks.ts';
 import {
   displayName,
@@ -213,13 +213,15 @@ export function attachPresence(
   }
 
   function respawn(client: Client, pose: NamedPose, cause?: Respawn['cause']) {
-    const { x, y, z, yaw } = spawnView(client.slot);
+    const { x, y, z, yaw } = respawnView();
     client.pose = { ...pose, x, y: y - EYE_HEIGHT, z, yaw };
     releaseVehicles(client.id);
     const respawn = {
       id: client.id,
       slot: client.slot,
       spawnRevision: ++client.spawnRevision,
+      x,
+      z,
       cause,
     };
     client.respawnPending = respawn;

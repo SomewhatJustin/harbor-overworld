@@ -130,6 +130,17 @@ export function spawnView(slot = 0): View {
   return { x, y: ground(x, z) + EYE_HEIGHT, z, yaw: 0.075, pitch: -0.075 };
 }
 
+export const RESPAWN_RADIUS = 3.5;
+
+/** A random spot on open ground within RESPAWN_RADIUS of harbor spawn. */
+export function respawnView(random = Math.random): View {
+  const angle = random() * 2 * Math.PI;
+  const distance = RESPAWN_RADIUS * Math.sqrt(random());
+  const x = SPAWN.x + Math.sin(angle) * distance;
+  const z = SPAWN.z + Math.cos(angle) * distance;
+  return { x, y: ground(x, z) + EYE_HEIGHT, z, yaw: 0.075, pitch: -0.075 };
+}
+
 const FOOTPRINT = [
   [0.18, 0],
   [-0.18, 0],

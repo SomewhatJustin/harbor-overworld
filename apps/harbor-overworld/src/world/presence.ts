@@ -143,7 +143,10 @@ export function createPresence(
     line?: number,
     sharkHit?: boolean,
   ) => void,
-  onRespawn: (slot: number, cause?: Respawn['cause']) => void,
+  onRespawn: (
+    spot: { x: number; z: number } | undefined,
+    cause?: Respawn['cause'],
+  ) => void,
 ) {
   const session = tabSession();
   const tracks = new Map<number, Track>();
@@ -203,7 +206,14 @@ export function createPresence(
       return false;
     spawnRevision = value.spawnRevision;
     onRespawn(
-      value.slot,
+      'x' in value &&
+        'z' in value &&
+        typeof value.x === 'number' &&
+        typeof value.z === 'number' &&
+        Number.isFinite(value.x) &&
+        Number.isFinite(value.z)
+        ? { x: value.x, z: value.z }
+        : undefined,
       'cause' in value && value.cause === 'shark' ? 'shark' : undefined,
     );
     return true;

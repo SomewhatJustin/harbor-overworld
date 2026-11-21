@@ -89,9 +89,10 @@ test('standalone Overworld bundle', { timeout: 20000 }, async (t) => {
     exploreFeedResponse,
     createCrown,
     EYE_HEIGHT,
-    spawnView,
+    RESPAWN_RADIUS,
     HIT_LINES,
     ground,
+    SPAWN,
     WATER,
   } = await import(pathToFileURL(fixture));
   const { worldPost, regularPost } = postFixtures(authorKey.key);
@@ -333,18 +334,16 @@ test('standalone Overworld bundle', { timeout: 20000 }, async (t) => {
         b.until(hit, from),
       ]);
       assert.deepEqual(local, observed);
-      assert.deepEqual(observed.respawn, {
+      const { x, z, ...respawn } = observed.respawn;
+      assert.deepEqual(respawn, {
         id,
         slot,
         spawnRevision: 1,
         cause: 'shark',
       });
-      const spawn = spawnView(slot);
+      assert.ok(Math.hypot(x - SPAWN.x, z - SPAWN.z) <= RESPAWN_RADIUS);
       await b.until(
-        (m) =>
-          m.players?.some(
-            (p) => p.id === id && p.x === spawn.x && p.z === spawn.z,
-          ),
+        (m) => m.players?.some((p) => p.id === id && p.x === x && p.z === z),
         from,
       );
       await swimmer.close();
@@ -540,20 +539,20 @@ test('standalone Overworld bundle', { timeout: 20000 }, async (t) => {
       assert.ok(Math.abs(shot.path.end[2] - at.z) < 0.4);
       assert.equal(shot.hit.id, other.id);
       assert.ok(HIT_LINES[shot.hit.line]);
-      assert.deepEqual(shot.hit.respawn, {
+      const { x, z, ...respawn } = shot.hit.respawn;
+      assert.deepEqual(respawn, {
         id: other.id,
         slot: other.slot,
         spawnRevision: 1,
       });
-
-      const spawn = spawnView(other.slot);
+      assert.ok(Math.hypot(x - SPAWN.x, z - SPAWN.z) <= RESPAWN_RADIUS);
       const cursor = victim.received.length;
       victim.send(at);
       const afterHit = await victim.until((m) => m.type === 'players', cursor);
       const respawned = afterHit.players.find((p) => p.id === other.id);
-      assert.equal(respawned.x, spawn.x);
-      assert.equal(respawned.z, spawn.z);
-      assert.equal(respawned.y, spawn.y - EYE_HEIGHT);
+      assert.equal(respawned.x, x);
+      assert.equal(respawned.z, z);
+      assert.equal(respawned.y, ground(x, z));
       assert.equal(
         victim.received.filter((m) => m.type === 'gunshot').length,
         1,

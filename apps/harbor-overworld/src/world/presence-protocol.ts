@@ -46,6 +46,8 @@ export type Respawn = {
   id: number;
   slot: number;
   spawnRevision: number;
+  x: number;
+  z: number;
   cause?: 'shark';
 };
 export type ShotPoint = readonly [number, number, number];

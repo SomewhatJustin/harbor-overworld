@@ -22,7 +22,12 @@ import { createCrown } from './crown';
 import { createWorldAudio } from './world-audio';
 import { createLandShark, type SharkPose } from './land-shark';
 import { bindMobileControls } from './mobile';
-import { createPlayerMovement, EYE_HEIGHT, spawnView } from './movement';
+import {
+  createPlayerMovement,
+  EYE_HEIGHT,
+  respawnView,
+  spawnView,
+} from './movement';
 import { PostNotice } from './notice';
 import {
   DROP_BASE,
@@ -199,10 +204,16 @@ const presence = createPresence(
   respawnPlayer,
 );
 
-function respawnPlayer(slot: number, cause?: Respawn['cause']) {
+function respawnPlayer(
+  spot: { x: number; z: number } | undefined,
+  cause?: Respawn['cause'],
+) {
   boat.reset();
   plane.reset();
-  player.reset(spawnView(slot));
+  const view = respawnView();
+  player.reset(
+    spot ? { ...view, ...spot, y: ground(spot.x, spot.z) + EYE_HEIGHT } : view,
+  );
   announce(
     cause === 'shark'
       ? 'The land shark got you. You respawned at the harbor.'
@@ -1655,7 +1666,7 @@ function start() {
         boat.aboard || plane.aboard
           ? []
           : [{ id: 1, x: view.x, y: view.y - EYE_HEIGHT, z: view.z }];
-      if (soloShark.step(dt, walkers).length) respawnPlayer(0, 'shark');
+      if (soloShark.step(dt, walkers).length) respawnPlayer(undefined, 'shark');
     }
     const shark = soloShark?.pose ?? presence.shark(time);
     worldAudio.setSharkInWater(

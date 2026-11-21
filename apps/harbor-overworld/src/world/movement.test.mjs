@@ -1,14 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fly, parkedPlane } from './flight.ts';
-import {
-  createLandShark,
-  LAND_SHARK_SPEED,
-  SHARK_WALK_SECONDS,
-} from './land-shark.ts';
+import { createLandShark, LAND_SHARK_SPEED } from './land-shark.ts';
 import { sharkHitDepth } from './shot-ray.ts';
 import { traceShot } from './shot-trace.ts';
-import { createPlayerMovement, EYE_HEIGHT, WALK_SPEED } from './movement.ts';
+import {
+  createPlayerMovement,
+  EYE_HEIGHT,
+  RESPAWN_RADIUS,
+  respawnView,
+  WALK_SPEED,
+} from './movement.ts';
 import { replayScenario, scenarios, scenarioView } from './scenarios.ts';
 import {
   ground,
@@ -18,7 +20,9 @@ import {
   MAX_X,
   WATER,
   NOTICE,
+  SPAWN,
   STATIONS,
+  stationPenetration,
 } from './terrain.ts';
 
 const { obstacles } = makeTerrain();
@@ -197,7 +201,7 @@ test('open water surrounds the island and supports movement far from shore', () 
 });
 
 test('the land shark swims at the midpoint between walking and sprinting and kills on contact', () => {
-  const shark = createLandShark(() => 0.9);
+  const shark = createLandShark();
   const start = shark.pose;
   assert.equal(LAND_SHARK_SPEED, (WALK_SPEED + WALK_SPEED * 2) / 2);
   shark.step(0.1, []);
@@ -219,35 +223,31 @@ test('the land shark swims at the midpoint between walking and sprinting and kil
   assert.deepEqual(bitten, [swimmer.id]);
 });
 
-test('a shore approach rolls once at 25 percent and a successful walkout lasts 60 seconds', () => {
-  let rolls = 0;
-  const stayingWet = createLandShark(() => {
-    rolls++;
-    return 0.25;
-  });
-  const swimmer = { id: 1, x: 7.5, y: 1, z: 25.5 };
-  for (let frame = 0; frame < 60; frame++) {
-    stayingWet.step(0.1, [swimmer]);
-    assert.equal(stayingWet.pose.inWater, true);
+test('the shark never leaves the water, even when players stand on the beach', () => {
+  const shark = createLandShark();
+  const patrol = [
+    { x: 7.5, z: 25.5 },
+    { x: 20.5, z: 39.5 },
+    { x: 18.5, z: 29.5 },
+  ];
+  const visited = new Set();
+  const beach = { id: 1, x: 5.5, y: ground(5.5, 24.5), z: 24.5 };
+  assert.ok(beach.y >= WATER);
+  for (let frame = 0; frame < 6000; frame++) {
+    assert.deepEqual(shark.step(0.1, [beach]), []);
+    const { x, z, inWater, walking } = shark.pose;
+    assert.ok(ground(x, z) < WATER, `on land at ${x}, ${z}`);
+    assert.equal(inWater, true);
+    assert.equal(walking, false);
+    patrol.forEach((point, index) => {
+      if (Math.hypot(point.x - x, point.z - z) < 0.5) visited.add(index);
+    });
   }
-  assert.equal(rolls, 1);
-  for (let frame = 0; frame < 120; frame++) stayingWet.step(0.1, []);
-  assert.ok(rolls >= 2, 'a fresh visit to shore gets a fresh roll');
-
-  const walking = createLandShark(() => 0.249);
-  const spawn = walking.pose;
-  for (let frame = 0; frame < 50 && walking.pose.inWater; frame++)
-    walking.step(0.1, []);
-  assert.equal(walking.pose.inWater, false);
-  assert.equal(walking.pose.walking, true);
-  walking.step(SHARK_WALK_SECONDS - 0.1, []);
-  assert.equal(walking.pose.inWater, false);
-  walking.step(0.1, []);
-  assert.deepEqual(walking.pose, spawn);
+  assert.equal(visited.size, patrol.length, 'the shark keeps patrolling');
 });
 
 test('the King can hit a swimming shark, which respawns after the scream', () => {
-  const shark = createLandShark(() => 0.9);
+  const shark = createLandShark();
   const start = shark.pose;
   shark.step(0.1, []);
   const origin = [shark.pose.x + 8, shark.pose.y + 1.4, shark.pose.z];
@@ -259,6 +259,52 @@ test('the King can hit a swimming shark, which respawns after the scream', () =>
   assert.equal(shark.pose.dying, true);
   shark.step(0.1, []);
   assert.deepEqual(shark.pose, start);
+
+  const { x, y, z } = shark.pose;
+  const aim = { type: 'shoot', yaw: -Math.PI / 2, pitch: -0.05, kingScale: 1 };
+  const shot = traceShot(
+    { id: 1, x: x + 8, y: y + 0.5, z, yaw: aim.yaw },
+    aim,
+    [],
+    [],
+    { stationCount: 0, drops: [], shark: shark.pose },
+  );
+  assert.equal(shot.sharkHit, true);
+  assert.equal(shot.path.impact, true);
+});
+
+test('respawns land at random spots on open ground near harbor spawn', () => {
+  let seed = 7;
+  const random = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  const spots = new Set();
+  let farthest = 0;
+  for (let sample = 0; sample < 2000; sample++) {
+    const { x, y, z } = respawnView(random);
+    const distance = Math.hypot(x - SPAWN.x, z - SPAWN.z);
+    farthest = Math.max(farthest, distance);
+    assert.ok(distance <= RESPAWN_RADIUS + 1e-9);
+    assert.ok(ground(x, z) >= WATER, `in water at ${x}, ${z}`);
+    assert.equal(y, ground(x, z) + EYE_HEIGHT);
+    for (const station of STATIONS)
+      assert.ok(stationPenetration(station, x, z) <= 0);
+    for (const o of obstacles) {
+      if (o.bottom > y) continue;
+      const dx = Math.abs(x - o.x);
+      const dz = Math.abs(z - o.z);
+      assert.ok(
+        'radius' in o
+          ? Math.hypot(dx, dz) > o.radius + 0.17
+          : dx > o.halfWidth + 0.17 || dz > o.halfDepth + 0.17,
+        `inside an obstacle at ${x}, ${z}`,
+      );
+    }
+    spots.add(`${x.toFixed(1)},${z.toFixed(1)}`);
+  }
+  assert.ok(farthest > RESPAWN_RADIUS * 0.95, 'uses the whole area');
+  assert.ok(spots.size > 500, 'spots vary');
 });
 
 test('shots mark the impacted face of a noticeboard and mark landed posts', () => {

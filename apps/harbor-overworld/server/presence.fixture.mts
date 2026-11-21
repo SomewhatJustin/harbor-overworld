@@ -17,9 +17,9 @@ import {
 import { SortPostsBy } from '../../../packages/js-core/src/proto/polycentric/v2/search.ts';
 
 export { createCrown } from '../src/world/crown.ts';
-export { EYE_HEIGHT, spawnView } from '../src/world/movement.ts';
+export { EYE_HEIGHT, RESPAWN_RADIUS } from '../src/world/movement.ts';
 export { HIT_LINES } from '../src/world/presence-protocol.ts';
-export { ground, WATER } from '../src/world/terrain.ts';
+export { ground, SPAWN, WATER } from '../src/world/terrain.ts';
 const author = 'ab'.repeat(32);
 export const resetTime = Date.parse('2026-11-20T09:00:00.000Z');
 
