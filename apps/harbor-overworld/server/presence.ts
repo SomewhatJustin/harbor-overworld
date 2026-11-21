@@ -38,6 +38,7 @@ import {
   VEHICLE_BERTHS,
   VEHICLE_KINDS,
 } from '../src/world/vehicles.ts';
+import { inventoryRoomForPresence } from '../src/blort/server/inventory-room.ts';
 import { createPlots, type PlotFeed } from './plots.ts';
 import { traceShot } from '../src/world/shot-trace.ts';
 
@@ -110,6 +111,10 @@ export function attachPresence(
   const crown = createCrown(practice ? PRACTICE_CROWN_SITES : undefined);
   let shotObstacles: readonly Obstacle[] | undefined;
   let practiceTargetIndex = 0;
+  const inventory = inventoryRoomForPresence(plotsFile, practice, (socket) => {
+    for (const { ws, pose } of clients.values()) if (ws === socket) return pose;
+    return undefined;
+  });
 
   function practiceTarget(): Player {
     const { x, z } = PRACTICE_TARGET_SITES[practiceTargetIndex];
@@ -139,8 +144,16 @@ export function attachPresence(
   );
 
   function playersWithPoses(): Player[] {
-    return [...clients.values()].flatMap(({ id, pose }) =>
-      pose ? [{ id, ...pose }] : [],
+    return [...clients.values()].flatMap(({ id, pose, ws }) =>
+      pose
+        ? [
+            {
+              id,
+              ...pose,
+              ...(inventory.isArmed(ws) && { armed: true as const }),
+            },
+          ]
+        : [],
     );
   }
 
@@ -153,14 +166,16 @@ export function attachPresence(
 
   function shoot(client: Client, aim: Shoot, now: number) {
     const state = crown.state;
+    const king =
+      'holder' in state && state.holder === client.id && now < state.expiresAt;
     if (
       !client.pose ||
-      !('holder' in state) ||
-      state.holder !== client.id ||
-      now >= state.expiresAt ||
+      !(king || inventory.isArmed(client.ws)) ||
       now < client.nextShot
     )
       return;
+    // Only the King shoots from a giant's height.
+    if (!king) aim = { ...aim, kingScale: 1 };
     client.nextShot = now + SHOT_INTERVAL;
     shotObstacles ??= makeTerrain().obstacles;
     const players = playersWithPoses();
@@ -276,6 +291,7 @@ export function attachPresence(
       if (previous) previous.ws.close(4001, 'Connection replaced');
       ws.on('error', () => ws.terminate());
       ws.on('close', (code) => {
+        inventory.disconnect(ws);
         if (clients.get(session) !== client) return;
         clients.delete(session);
         releaseVehicles(client.id);
@@ -287,6 +303,7 @@ export function attachPresence(
         if (binary || clients.get(session) !== client) return;
         const now = performance.now();
         const message = parseMessage(data.toString());
+        if (inventory.receive(ws, message)) return;
         if (isShoot(message)) {
           shoot(client, message, now);
           return;
@@ -453,6 +470,7 @@ export function attachPresence(
   http.once('close', () => {
     clearInterval(timer);
     plots.close();
+    void inventory.close();
     http.off('upgrade', upgrade);
     for (const { ws } of clients.values()) ws.terminate();
     clients.clear();

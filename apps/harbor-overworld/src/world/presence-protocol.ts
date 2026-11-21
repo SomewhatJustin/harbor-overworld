@@ -124,7 +124,13 @@ export function readChat(value: unknown): ChatPost | undefined {
         : preview.join(''),
   };
 }
-export type Player = NamedPose & { id: number; king?: true; practice?: true };
+export type Player = NamedPose & {
+  id: number;
+  king?: true;
+  /** Holding a gun from the inventory. */
+  armed?: true;
+  practice?: true;
+};
 export type CrownLocation = { x: number; z: number };
 export type RoomCrown =
   | CrownLocation

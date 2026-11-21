@@ -19,6 +19,7 @@ import { shouldRejoinWorld, watchWorldUpdates } from './build';
 import { bindIdentityDialog } from './connect';
 import { createControls, POINTER_DEGREES } from './controls';
 import { createCrown } from './crown';
+import { currentProps, isArmed, setPlayerPose } from './bridge';
 import { createWorldAudio } from './world-audio';
 import { createLandShark, type SharkPose } from './land-shark';
 import { bindMobileControls } from './mobile';
@@ -1167,7 +1168,7 @@ world.addEventListener('click', (event) => {
     : !game.classList.contains('touch-input');
   if (mouse && entered) {
     const locked = document.pointerLockElement === world;
-    if (locked || (kingMode && dragDistance < 5)) controls.run('shoot');
+    if (locked || (gunOut() && dragDistance < 5)) controls.run('shoot');
     if (locked || dragDistance >= 5) return;
   }
   if (!entered || mouse) controls.run('enter', mouse, false);
@@ -1220,7 +1221,6 @@ function updateCrown(time: number) {
     kingMode = crowned;
     kingSizeButton.hidden = !crowned;
     kingControls.hidden = !crowned;
-    touchShoot.hidden = !crowned;
     touchJump.textContent = crowned ? 'Rise' : 'Jump';
     jumpHint.textContent = crowned ? 'Hold to ascend' : 'Jump';
     setKingScale(DEFAULT_KING_SCALE);
@@ -1243,11 +1243,16 @@ function cycleKingScale() {
     );
 }
 
+/** The crown's gun, or one drawn from the inventory. */
+function gunOut() {
+  return kingMode || isArmed();
+}
+
 function shootOnce() {
   const now = performance.now();
   if (
     !entered ||
-    !kingMode ||
+    !gunOut() ||
     chatPanel.open ||
     connectPanel.open ||
     playground?.replaying ||
@@ -1258,7 +1263,11 @@ function shootOnce() {
   nextShot = now + SHOT_INTERVAL;
   worldAudio.unlock();
   if (
-    !presence.shoot({ yaw: view.yaw, pitch: view.pitch, kingScale }) &&
+    !presence.shoot({
+      yaw: view.yaw,
+      pitch: view.pitch,
+      kingScale: kingMode ? kingScale : 1,
+    }) &&
     soloCrown
   ) {
     const { path, sharkHit } = traceShot(
@@ -1627,6 +1636,7 @@ function start() {
     previous = time;
     const exploring = entered && !chatPanel.open && !connectPanel.open;
     const crown = updateCrown(time);
+    if (touchShoot.hidden === gunOut()) touchShoot.hidden = !gunOut();
     const collisions = {
       obstacles: renderer.obstacles,
       stationCount: notices.length,
@@ -1682,17 +1692,23 @@ function start() {
       if (avatar.name && avatar.name === avatarName)
         avatar.name = `${avatar.name} · #${avatar.id}`;
     }
+    setPlayerPose(
+      entered && !boat.aboard && !plane.aboard
+        ? { x: view.x, y: view.y - EYE_HEIGHT, z: view.z, yaw: view.yaw }
+        : undefined,
+    );
     renderer.draw(
       camera,
       seconds,
       avatars,
       [...worldPosts.values()].map(({ drop }) => drop),
       crown,
-      entered && kingMode && !plane.aboard,
+      entered && gunOut() && !plane.aboard,
       boat.pose,
       plane.pose,
       shark,
       shotEffects,
+      currentProps(),
     );
     drawHud(avatars, shark);
   }

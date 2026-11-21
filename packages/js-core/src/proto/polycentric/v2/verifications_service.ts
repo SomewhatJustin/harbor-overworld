@@ -15,8 +15,7 @@ import { ContentDigest } from "./common";
 import { EventKey } from "./event_key";
 import { EventHint } from "./events";
 import { EventBundle } from "./events";
-// Separate from verifications.proto: that file is imported by content.proto,
-// so importing events.proto (for EventBundle) there would be a cyclic import.
+// Separate from verifications.proto: that file is imported by content.proto,// so importing events.proto (for EventBundle) there would be a cyclic import.
 
 /**
  * A claim with the verification state around it, so lists can show each

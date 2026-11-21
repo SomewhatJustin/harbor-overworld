@@ -1,0 +1,222 @@
+/* Hotbar and backpack. Every rule is scoped to a .blort- class so nothing
+   here changes the game's own HUD, apart from the lift below. */
+
+.blort-inventory {
+  --blort-slot: 50px;
+  --blort-gap: 4px;
+  position: absolute;
+  left: 50%;
+  bottom: max(26px, var(--safe-bottom));
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  user-select: none;
+}
+#overworld:not(.entered) .blort-inventory,
+#overworld:not(.entered) .blort-backdrop {
+  display: none;
+}
+
+/* The noticeboard controls and toasts share the bottom center with the
+   hotbar, so lift them above it once it's on screen. */
+#overworld.entered:not(.touch-input) .interaction {
+  bottom: calc(max(26px, var(--safe-bottom)) + 70px);
+}
+#overworld.entered:not(.touch-input) .toast {
+  bottom: calc(max(26px, var(--safe-bottom)) + 122px);
+}
+
+.blort-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: #0b14085c;
+}
+
+.blort-hotbar,
+.blort-grid {
+  display: grid;
+  gap: var(--blort-gap);
+}
+.blort-hotbar {
+  grid-auto-flow: column;
+  padding: 6px;
+}
+.blort-backpack {
+  padding: 10px;
+  pointer-events: auto;
+}
+.blort-grid {
+  grid-template-columns: repeat(var(--blort-columns, 6), var(--blort-slot));
+}
+.blort-chest {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+#overworld .blort-chest[hidden] {
+  display: none;
+}
+.blort-chest .blort-heading > span:first-child {
+  color: var(--gold);
+}
+.blort-inventory.open .blort-chest.take-only .blort-slot:not(.filled):hover {
+  border-color: var(--line);
+  background: #e2d6a30f;
+}
+.blort-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 2px 9px;
+  color: var(--soft);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.blort-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.blort-slot {
+  position: relative;
+  display: grid;
+  width: var(--blort-slot);
+  height: var(--blort-slot);
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #e2d6a30f;
+  color: var(--ink);
+  cursor: default;
+}
+.blort-inventory.open .blort-slot {
+  pointer-events: auto;
+}
+.blort-inventory.open .blort-slot.filled {
+  cursor: grab;
+}
+.blort-inventory.open .blort-slot:hover {
+  border-color: #ffc87599;
+  background: #e2d6a324;
+}
+.blort-slot[data-key]::before {
+  content: attr(data-key);
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  color: var(--soft);
+  font-size: 10px;
+  line-height: 1;
+}
+.blort-slot.selected {
+  border-color: var(--gold);
+  box-shadow: inset 0 0 0 1px var(--gold);
+}
+.blort-slot.held {
+  background: color-mix(in srgb, var(--gold) 28%, transparent);
+}
+.blort-slot.dragging .blort-icon {
+  opacity: 0.3;
+}
+.blort-icon {
+  display: grid;
+  place-items: center;
+  width: 70%;
+  height: 70%;
+  font-size: 26px;
+  line-height: 1;
+  object-fit: contain;
+}
+.blort-count {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px #000;
+}
+
+.blort-prompt {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 5px 11px;
+  color: var(--ink);
+  font-size: 13px;
+}
+#overworld .blort-prompt[hidden],
+.blort-inventory.open .blort-prompt {
+  display: none;
+}
+
+.blort-offline {
+  display: none;
+  margin: 0;
+  padding: 3px 9px;
+  border-radius: 5px;
+  background: var(--plate);
+  color: var(--soft);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+.blort-inventory.offline .blort-offline {
+  display: block;
+}
+.blort-inventory.offline .blort-slot {
+  opacity: 0.45;
+}
+.blort-inventory.offline .blort-slot.filled {
+  cursor: not-allowed;
+}
+
+.blort-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  width: 50px;
+  height: 50px;
+  margin: -25px 0 0 -25px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+#overworld .blort-ghost[hidden] {
+  display: none;
+}
+
+/* Narrow screens: smaller slots, and sit above the controls and map. */
+@media (max-width: 900px) {
+  .blort-inventory {
+    --blort-slot: 42px;
+  }
+  .blort-icon {
+    font-size: 22px;
+  }
+}
+@media (max-width: 620px) {
+  .blort-inventory {
+    bottom: calc(max(12px, var(--safe-bottom)) + 150px);
+  }
+}
+
+/* Touch: no Tab key, so only the hotbar, just above the joystick row. */
+.touch-input .blort-inventory {
+  --blort-slot: 40px;
+  bottom: calc(max(12px, var(--safe-bottom)) + 185px);
+}
+.touch-input .blort-backpack,
+.touch-input .blort-backdrop {
+  display: none;
+}

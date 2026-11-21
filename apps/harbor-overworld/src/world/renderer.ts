@@ -15,6 +15,7 @@ import {
   nameplate,
 } from './avatar';
 import { boatMesh, type BoatPose } from './boat';
+import type { Prop } from './bridge';
 import { landSharkMesh, type SharkPose } from './land-shark';
 import type { PlanePose } from './flight';
 import type { View } from './movement';
@@ -316,6 +317,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
   const heldGun = uploadMesh(gunMesh());
   const firstPersonGun = uploadMesh(gunMesh(true));
   const firstPersonFlash = uploadMesh(firstPersonFlare());
+  const propMeshes = new WeakMap<Float32Array, ReturnType<typeof uploadMesh>>();
   const shotBuffer = gl.createBuffer();
   const noticeTextures: WebGLTexture[] = [];
   let stationVertices = 0;
@@ -496,6 +498,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       plane: PlanePose,
       shark: SharkPose | undefined,
       shots: readonly ShotEffect[],
+      props: readonly Prop[] = [],
     ) {
       const gl = context;
       const cssWidth = Math.max(1, canvas.clientWidth);
@@ -606,6 +609,21 @@ export function createRenderer(canvas: HTMLCanvasElement) {
         gl.uniform1f(avatarStep, 0);
         mesh(crownPickup.buffer, crownPickup.count, avatarAttributes);
       }
+      gl.uniform1f(avatarScale, 1);
+      gl.uniform1f(avatarStep, 0);
+      for (const prop of props) {
+        let uploaded = propMeshes.get(prop.vertices);
+        if (!uploaded) {
+          uploaded = uploadMesh(prop.vertices);
+          propMeshes.set(prop.vertices, uploaded);
+        }
+        const pitch = prop.pitch ?? 0;
+        gl.uniform3f(avatarOrigin, prop.x, prop.y, prop.z);
+        gl.uniform2f(avatarRotation, Math.cos(prop.yaw), Math.sin(prop.yaw));
+        gl.uniform2f(avatarPitch, Math.cos(pitch), Math.sin(pitch));
+        mesh(uploaded.buffer, uploaded.count, avatarAttributes);
+      }
+      gl.uniform2f(avatarPitch, 1, 0);
       for (const avatar of visible) {
         const model = avatarMeshes[coatIndex(avatar.id)];
         gl.uniform3f(avatarOrigin, avatar.x, avatar.y, avatar.z);
@@ -620,10 +638,9 @@ export function createRenderer(canvas: HTMLCanvasElement) {
           avatar.walking ? Math.sin(time * 14 + avatar.id) * 0.18 : 0,
         );
         mesh(model.buffer, model.count, avatarAttributes);
-        if (avatar.king) {
-          mesh(crown.buffer, crown.count, avatarAttributes);
+        if (avatar.king) mesh(crown.buffer, crown.count, avatarAttributes);
+        if (avatar.king || avatar.armed)
           mesh(heldGun.buffer, heldGun.count, avatarAttributes);
-        }
       }
       for (const attr of avatarAttributes) gl.disableVertexAttribArray(attr);
 

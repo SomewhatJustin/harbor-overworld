@@ -33,8 +33,14 @@ import {
   type VehicleKind,
   type VehicleReport,
 } from './vehicles';
+import { inventoryLink } from '../blort/inventory/link';
 
-export type Avatar = NamedPose & { id: number; walking: boolean; king?: true };
+export type Avatar = NamedPose & {
+  id: number;
+  walking: boolean;
+  king?: true;
+  armed?: true;
+};
 export type LocalCrown =
   | { location: CrownLocation }
   | { expiresAt: number; holderName?: string };
@@ -53,6 +59,7 @@ type Track = {
   receivedAt: number;
   walking: boolean;
   king?: true;
+  armed?: true;
   kingScale?: KingScale;
 };
 
@@ -221,6 +228,7 @@ export function createPresence(
     connection.addEventListener('message', ({ data }) => {
       if (socket !== connection || typeof data !== 'string') return;
       const message = parseMessage(data);
+      if (inventoryLink.receive(message)) return;
       if (!message || typeof message !== 'object' || !('type' in message))
         return;
 
@@ -240,6 +248,7 @@ export function createPresence(
         )
           onJoin(message.slot);
         available = true;
+        inventoryLink.attach(connection);
         status('1 player online');
         sendPose(connection);
         sendTimer = window.setInterval(
@@ -476,6 +485,7 @@ export function createPresence(
           name: 'name' in player ? displayName(player.name) : undefined,
           chat: 'chat' in player ? readChat(player.chat) : undefined,
           king: king ? true : undefined,
+          armed: 'armed' in player && player.armed === true ? true : undefined,
           kingScale:
             king && 'kingScale' in player
               ? readKingScale(player.kingScale)
@@ -505,6 +515,7 @@ export function createPresence(
   }
 
   function reset(preserveCrown = false) {
+    inventoryLink.detach();
     socket = undefined;
     id = undefined;
     spawnRevision = 0;
@@ -569,6 +580,7 @@ export function createPresence(
         name: track.name,
         chat: track.chat,
         king: track.king,
+        armed: track.armed,
         kingScale: track.kingScale,
         ...interpolate(track, now),
       }));
