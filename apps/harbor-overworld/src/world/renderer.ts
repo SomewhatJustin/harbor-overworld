@@ -485,6 +485,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
         setNotice(index, page);
       }
     },
+    contextLost: () => context.isContextLost(),
     draw(
       view: View,
       time: number,
@@ -496,6 +497,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       plane: PlanePose,
       shark: SharkPose | undefined,
       shots: readonly ShotEffect[],
+      photographing = false,
     ) {
       const gl = context;
       const cssWidth = Math.max(1, canvas.clientWidth);
@@ -748,7 +750,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
           drawBillboard(x, z, bottom, halfWidth, height);
         }
 
-        for (const avatar of nearby) {
+        for (const avatar of photographing ? [] : nearby) {
           const labelY =
             avatar.y + (avatar.king ? 1.82 * avatarScaleFor(avatar) : 1.63);
           const label = nameTexture(
@@ -805,7 +807,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
         gl.disableVertexAttribArray(noticePoint);
         gl.disableVertexAttribArray(paperUv);
       }
-      if (crownLocation) {
+      if (crownLocation && !photographing) {
         gl.useProgram(beaconProgram);
         camera(beaconUniforms);
         gl.uniform1f(beaconTime, time);
@@ -841,7 +843,7 @@ export function createRenderer(canvas: HTMLCanvasElement) {
         for (const attr of worldAttributes) gl.disableVertexAttribArray(attr);
         gl.enable(gl.CULL_FACE);
       }
-      if (showHeldGun) {
+      if (showHeldGun && !photographing) {
         gl.clear(gl.DEPTH_BUFFER_BIT);
         gl.useProgram(worldProgram);
         gl.uniform3f(worldUniforms.eye, 0, 0, 0);

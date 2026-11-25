@@ -8,7 +8,7 @@ import {
 } from '@polycentric/js-core';
 import { Query } from '@polycentric/rs-core-wasm/web';
 import { getClient, HARBOR_PRODUCTION_SERVERS } from '../client/client';
-import { createPost, MAX_POST_LENGTH } from '../data/compose';
+import { createPost, storePhoto, MAX_POST_LENGTH } from '../data/compose';
 import { loadExplorePage } from '../data/feed';
 import { createIdentity, latestLocalProfile } from '../data/identity';
 import { findLike, setLike } from '../data/likes';
@@ -109,6 +109,23 @@ const identityForm = element<HTMLFormElement>('identity-form');
 const identityName = element<HTMLInputElement>('identity-name');
 const draft = element<HTMLTextAreaElement>('draft');
 const send = element<HTMLButtonElement>('send');
+const takePhoto = element<HTMLButtonElement>('take-photo');
+const removePhoto = element<HTMLButtonElement>('remove-photo');
+const attachment = element('photo-attachment');
+const preview = element<HTMLCanvasElement>('photo-preview');
+let captureNextFrame = false;
+
+function clearPhoto() {
+  captureNextFrame = false;
+  attachment.hidden = true;
+  preview.width = preview.height = 1;
+  takePhoto.textContent = '📷 Take photo';
+}
+
+takePhoto.addEventListener('click', () => {
+  captureNextFrame = true;
+});
+removePhoto.addEventListener('click', clearPhoto);
 const create = element<HTMLButtonElement>('create-identity');
 const chatStatus = element('chat-status');
 const toast = element('toast');
@@ -880,6 +897,7 @@ function showComposer() {
   const label = pending ? 'Retry publish' : 'Publish';
   element('send-label').textContent = label;
   send.disabled = busy;
+  takePhoto.disabled = removePhoto.disabled = busy || !!pending;
   create.disabled = busy;
   draft.readOnly = busy || !!pending;
   chatForm.hidden = !ready;
@@ -894,8 +912,11 @@ async function openChat(target?: PostData) {
     announce('Playground uses a sample feed.');
     return;
   }
-  if (chatPanel.open || connectPanel.open) return;
-  if (!pending && replyTo?.id !== target?.id) draft.value = '';
+  if (busy || chatPanel.open || connectPanel.open) return;
+  if (!pending && replyTo?.id !== target?.id) {
+    draft.value = '';
+    clearPhoto();
+  }
   if (!pending) replyTo = target;
   element('chat-heading').textContent = replyTo
     ? 'Reply to post'
@@ -968,7 +989,12 @@ async function submitDraft() {
   if (isPlayground || !chatPanel.open) return;
   const activeClient = client;
   const text = draft.value.trim();
-  if (!activeClient?.activeIdentityKey || busy || (!pending && !text)) return;
+  if (
+    !activeClient?.activeIdentityKey ||
+    busy ||
+    (!pending && !text && attachment.hidden)
+  )
+    return;
   busy = true;
   showComposer();
   report('Publishing…');
@@ -978,7 +1004,9 @@ async function submitDraft() {
       const { x, z } = view;
       const result = await createPost(activeClient, {
         text,
-        images: [],
+        images: attachment.hidden
+          ? []
+          : [await storePhoto(activeClient, preview)],
         replyTo,
       });
       pending = { ...result, location: { x, z } };
@@ -1018,6 +1046,7 @@ async function submitDraft() {
     );
     pending = undefined;
     replyTo = undefined;
+    clearPhoto();
     draft.value = '';
     if (chatPanel.open) closePanel(chatPanel, false);
     announce(
@@ -1693,6 +1722,9 @@ function start() {
       if (avatar.name && avatar.name === avatarName)
         avatar.name = `${avatar.name} · #${avatar.id}`;
     }
+    const photographing =
+      captureNextFrame && chatPanel.open && !busy && !pending;
+    captureNextFrame = false;
     renderer.draw(
       camera,
       seconds,
@@ -1704,7 +1736,22 @@ function start() {
       plane.pose,
       shark,
       shotEffects,
+      photographing,
     );
+    if (photographing) {
+      const context = preview.getContext('2d');
+      if (context && !renderer.contextLost()) {
+        preview.width = world.width;
+        preview.height = world.height;
+        context.drawImage(world, 0, 0);
+        attachment.hidden = false;
+        takePhoto.textContent = '📷 Retake photo';
+        report('Photo attached.');
+        if (document.activeElement === takePhoto) draft.focus();
+      } else {
+        report('Could not capture the scene. Try again.');
+      }
+    }
     drawHud(avatars, shark);
   }
   requestAnimationFrame(frame);

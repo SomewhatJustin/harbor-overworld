@@ -973,3 +973,18 @@ button.text-link {
     margin-inline-start: 0.17em;
   }
 }
+
+#photo-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 18vh;
+  margin-bottom: 0.4rem;
+}
+#photo-attachment {
+  margin: 0.5rem 0;
+}
+#take-photo {
+  min-height: 43px;
+  padding: 9px 14px;
+  color: var(--ink);
+}

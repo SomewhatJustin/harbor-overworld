@@ -104,7 +104,11 @@
         <form id="chat-form">
           <label class="visually-hidden" for="draft">Post text</label>
           <textarea id="draft" rows="4" placeholder="What’s on your mind?" enterkeyhint="send"></textarea>
-          <div class="panel-actions"><button type="submit" class="primary" id="send"><span id="send-label">Publish</span> <span aria-hidden="true">↵</span></button><span class="metadata keyboard-help">Shift+Enter for a new line</span></div>
+          <div id="photo-attachment" hidden>
+            <canvas id="photo-preview" role="img" aria-label="Attached in-game photo"></canvas>
+            <button type="button" class="text-link" id="remove-photo">Remove photo</button>
+          </div>
+          <div class="panel-actions"><button type="button" class="plate" id="take-photo">📷 Take photo</button><button type="submit" class="primary" id="send"><span id="send-label">Publish</span> <span aria-hidden="true">↵</span></button><span class="metadata keyboard-help">Shift+Enter for a new line</span></div>
         </form>
         <form id="identity-form" hidden>
           <label for="identity-name">Display name</label>

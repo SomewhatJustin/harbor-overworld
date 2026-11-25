@@ -71,3 +71,38 @@ export async function createPost(
   );
   return { post: decoded, paper };
 }
+
+// Keep the JPEG in the identity's file store so sync can serve requested blobs
+// both on the first publish and when retrying a locally saved post.
+export async function storePhoto(
+  client: PolycentricClient,
+  canvas: HTMLCanvasElement,
+) {
+  const identity = client.activeIdentityKey;
+  if (!identity)
+    throw new Error('Choose an identity before attaching a photo.');
+  const photo = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob(
+      (blob) =>
+        blob ? resolve(blob) : reject(new Error('Could not encode photo')),
+      'image/jpeg',
+      0.88,
+    ),
+  );
+  const buffer = await photo.arrayBuffer();
+  const digest = v2.ContentDigest.create({
+    type: v2.ContentDigestType.SHA256,
+    value: new Uint8Array(await crypto.subtle.digest('SHA-256', buffer)),
+  });
+  await client.fileStore.put(identity, digest, new Uint8Array(buffer));
+  const blob = v2.Blob.create({
+    digest,
+    size: BigInt(photo.size),
+    mimeType: photo.type,
+  });
+  return v2.ImageSet.create({
+    images: [
+      v2.Image.create({ blob, width: canvas.width, height: canvas.height }),
+    ],
+  });
+}
