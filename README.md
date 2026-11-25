@@ -1,5 +1,7 @@
 # Harbor Overworld
 
+[Play Harbor Overworld](https://overworld.justin.how)
+
 This fork adds Harbor Overworld, a browser game with live Harbor posts on in-world noticeboards. See the [Overworld README](apps/harbor-overworld/README.md) to play locally or host the ready-to-serve release.
 
 <p align="center">
